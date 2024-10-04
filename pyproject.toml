@@ -1,0 +1,19 @@
+[tool.poetry]
+name = "hipcall-sdk"
+version = "0.1.0"
+description = "Official Hipcall API Wrapper written in Python"
+authors = ["Ahmet Sezgin Duran <sezgin.duran@linux.org.tr>"]
+license = "MIT"
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.12"
+requests = "^2.32.3"
+pydantic = "^2.9.2"
+
+[tool.poetry.group.dev.dependencies]
+ruff = "^0.6.8"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
