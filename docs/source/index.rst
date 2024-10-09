@@ -5,6 +5,7 @@ Hipcall Python SDK Documentation
    :caption: Contents:
 
    quickstart
+   development
    exceptions
    api
 
