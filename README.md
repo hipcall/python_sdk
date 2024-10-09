@@ -1,5 +1,7 @@
 # Hipcall SDK
 
+[![Documentation Status](https://readthedocs.org/projects/hipcall-python-sdk/badge/?version=latest)](https://hipcall-python-sdk.readthedocs.io/en/latest/?badge=latest)
+
 Official Hipcall API Wrapper written in Python.
 
 ## Installation
