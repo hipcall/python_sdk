@@ -17,7 +17,7 @@ build:
       - asdf global poetry latest
       - poetry config virtualenvs.create false
     post_install:
-      - poetry export --without-hashes --format=requirements.txt > requirements.txt
+      - poetry export --only docs --without-hashes --format=requirements.txt > docs/requirements.txt
 
 # Build documentation in the "docs/" directory with Sphinx
 sphinx:
