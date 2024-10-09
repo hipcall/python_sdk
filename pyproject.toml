@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "hipcall-sdk"
-version = "0.1.0"
+version = "0.1.1"
 description = "Official Hipcall API Wrapper written in Python"
 authors = ["Ahmet Sezgin Duran <sezgin.duran@linux.org.tr>"]
 license = "MIT"
