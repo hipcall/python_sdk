@@ -15,9 +15,9 @@ build:
       - asdf plugin add poetry
       - asdf install poetry latest
       - asdf global poetry latest
-      - poetry config virtualenvs.create false
     post_install:
-      - poetry export --only docs --without-hashes --format=requirements.txt > docs/requirements.txt
+      - ln -s $READTHEDOCS_VIRTUALENV_PATH .venv
+      - poetry install --only docs
 
 # Build documentation in the "docs/" directory with Sphinx
 sphinx:
@@ -32,6 +32,6 @@ sphinx:
 # Optional but recommended, declare the Python requirements required
 # to build your documentation
 # See https://docs.readthedocs.io/en/stable/guides/reproducible-builds.html
-python:
-  install:
-  - requirements: docs/requirements.txt
+#python:
+#  install:
+#  - requirements: docs/requirements.txt
