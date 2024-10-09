@@ -5,6 +5,9 @@ description = "Official Hipcall API Wrapper written in Python"
 authors = ["Ahmet Sezgin Duran <sezgin.duran@linux.org.tr>"]
 license = "MIT"
 readme = "README.md"
+homepage = "https://github.com/hipcall/python_sdk"
+repository = "https://github.com/hipcall/python_sdk"
+keywords = ["hipcall", "sdk", "api"]
 
 [tool.poetry.dependencies]
 python = "^3.12"
