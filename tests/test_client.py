@@ -23,7 +23,6 @@ def test_client_base_url_defaults():
     assert client.base_url == "https://use.hipcall.com.tr"
 
 
-
 def test_client_default_headers():
     # Arrange
     client = Client("dummy_api_key")

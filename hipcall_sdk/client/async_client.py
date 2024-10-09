@@ -27,11 +27,9 @@ class AsyncClient(HipcallBaseClient):
         if self.session:
             await self.session.close()
 
-    async def get_call(
-        self, call_id: str, date: Optional[str] = None
-    ) -> CallDetailResponse:
+    async def get_call(self, call_id: str, date: str) -> CallDetailResponse:
         url = self.get_call_detail_url(call_id)
-        params = {"date": date} if date else {}
+        params = {"date": date}
         async with self.session.get(url, params=params) as response:
             content = await response.json()
             data = self.handle_response(response.status, content)

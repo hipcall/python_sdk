@@ -20,11 +20,9 @@ class Client(HipcallBaseClient):
         self.session = requests.Session()
         self.session.headers.update(self.get_default_headers())
 
-    def get_call(self, call_id: str, date: Optional[str] = None) -> CallDetailResponse:
+    def get_call(self, call_id: str, date: str) -> CallDetailResponse:
         url = self.get_call_detail_url(call_id)
-        params = {}
-        if date:
-            params["date"] = date
+        params = {"date": date}
         response = self.session.get(url, params=params)
         data = self.handle_response(response.status_code, response.json())
         return CallDetailResponse(**data)

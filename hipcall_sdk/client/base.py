@@ -111,7 +111,7 @@ class HipcallBaseClient(ABC):
         return f"{self.base_url}/api/v3/tasks/{task_id}"
 
     @abstractmethod
-    def get_call(self, call_id: str, date: Optional[str] = None) -> CallDetailResponse:
+    def get_call(self, call_id: str, date: str) -> CallDetailResponse:
         """Get call details for given call ID and date.
 
         :param call_id: UUID of the call.
