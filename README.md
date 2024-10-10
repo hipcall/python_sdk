@@ -14,7 +14,7 @@ Documentation can be generated locally using Sphinx.
 
 ## Usage and Docs
 
-Please check out the online documentation.
+Please check out the online [documentation](https://hipcall-python-sdk.readthedocs.io/en/latest/).
 
 ## Roadmap
 
