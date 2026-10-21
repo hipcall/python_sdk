@@ -250,3 +250,24 @@ async def test_async_set_call_disposition_uses_put():
     assert (verb, url) == ("PUT", f"{BASE}/api/v3/calls/abc/disposition")
     assert kwargs["json"] == {"disposition_id": 7}
     assert result.data.editable is True
+
+
+def test_get_call_detail_with_list_call_flow():
+    session = FakeSession(
+        payload={
+            "data": {
+                "uuid": "17dea595-1234-5678-9abc-def012345678",
+                "started_at": "2026-10-13T12:05:55Z",
+                "ended_at": "2026-10-13T12:06:10Z",
+                "direction": "outbound",
+                "call_flow": [
+                    {"action": "hangup", "destination": None, "timestamp": 1791893155}
+                ],
+            }
+        }
+    )
+    client = make_client(session)
+    call = client.get_call("17dea595-1234-5678-9abc-def012345678", "2026-10-13")
+    assert call.data.uuid == "17dea595-1234-5678-9abc-def012345678"
+    assert isinstance(call.data.call_flow, list)
+    assert call.data.call_flow[0]["action"] == "hangup"

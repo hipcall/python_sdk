@@ -3,8 +3,9 @@ class HipcallAPIException(Exception):
         self.status_code = status_code
         self.content = content
 
-    def __str__(self):
-        return f"Unexpected error. Status: {self.status_code}, Content: {self.content}"
+    @property
+    def detail(self):
+        return self.content
 
     @property
     def errors(self):
@@ -12,6 +13,9 @@ class HipcallAPIException(Exception):
         if isinstance(self.content, dict):
             return self.content.get("errors")
         return None
+
+    def __str__(self):
+        return f"Unexpected error. Status: {self.status_code}, Content: {self.content}"
 
 
 class BadRequestException(HipcallAPIException):

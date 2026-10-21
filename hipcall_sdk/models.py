@@ -51,7 +51,7 @@ class CallDetail(BaseModel):
     channel_id: int | None = None
     user_id: int | None = None
     callee_number: str | None = None
-    call_flow: str | None = None
+    call_flow: list[dict[str, Any]] | list[Any] | str | None = None
     record_url: str | None = None
     callback_time: datetime | None = None
     callback_cdr_uuid: str | None = None
