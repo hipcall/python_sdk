@@ -9,7 +9,7 @@ class HipcallAPIException(Exception):
 
 class BadRequestException(HipcallAPIException):
     def __str__(self):
-        return f"Bad request: {self.content["errors"]["detail"]}"
+        return f"Bad request: {self.content['errors']['detail']}"
 
 
 class UnauthorizedException(HipcallAPIException):
