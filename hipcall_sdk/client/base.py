@@ -1,24 +1,23 @@
+import json
 from abc import ABC, abstractmethod
-from typing import Optional
 
 from hipcall_sdk.constants import DEFAULT_HIPCALL_BASE_ADDRESS
 from hipcall_sdk.exceptions import (
-    UnauthorizedException,
-    NotFoundException,
-    UnprocessableEntityException,
-    HipcallAPIException,
     BadRequestException,
+    HipcallAPIException,
+    NotFoundException,
+    UnauthorizedException,
+    UnprocessableEntityException,
 )
 from hipcall_sdk.models import (
+    CallAndBridgeResponse,
     CallDetailResponse,
     CallListResponse,
-    TaskListResponse,
-    TaskResponse,
     TaskCreate,
     TaskDetailResponse,
-    CallAndBridgeResponse,
+    TaskListResponse,
+    TaskResponse,
 )
-
 
 EXCEPTION_MAP = {
     400: BadRequestException,
@@ -40,7 +39,7 @@ class HipcallBaseClient(ABC):
         base_url (str): The base URL for the Hipcall API, optional.
     """
 
-    def __init__(self, api_key: str, base_url: Optional[str] = None):
+    def __init__(self, api_key: str, base_url: str | None = None):
         if not api_key:
             raise ValueError("API key must be provided.")
 
@@ -58,7 +57,7 @@ class HipcallBaseClient(ABC):
         }
 
     @staticmethod
-    def handle_response(status_code: int, content: dict) -> dict:
+    def handle_response(status_code: int, content: dict | None = None) -> dict:
         """Handle Hipcall API response status codes.
 
         :param status_code: HTTP response status code.
@@ -69,8 +68,33 @@ class HipcallBaseClient(ABC):
         if status_code in [200, 201]:
             return content
 
+        if status_code == 204:
+            return content or {}
+
         exc_class = EXCEPTION_MAP.get(status_code, HipcallAPIException)
         raise exc_class(status_code, content)
+
+    @staticmethod
+    def load_json(text: str) -> dict | None:
+        """Parse a response body that may be empty (e.g. HTTP 204).
+
+        :param text: Raw response body.
+        :return: Parsed JSON or None if the body is empty.
+        """
+        return json.loads(text) if text else None
+
+    @staticmethod
+    def build_params(**kwargs) -> dict:
+        """Build query params, dropping None values and lower-casing booleans.
+
+        :param kwargs: Query parameters.
+        :return: Dict of query parameters ready to send.
+        """
+        return {
+            k: (str(v).lower() if isinstance(v, bool) else v)
+            for k, v in kwargs.items()
+            if v is not None
+        }
 
     def get_call_detail_url(self, call_id: str) -> str:
         """Get call detail URL for call ID.
@@ -118,15 +142,22 @@ class HipcallBaseClient(ABC):
         :param date: Date of the call.
         :return: Pydantic model containing call details.
         """
-        pass
 
     @abstractmethod
     def get_calls(
         self,
         limit: int = 10,
         offset: int = 0,
-        q: Optional[str] = None,
+        q: str | None = None,
         sort: str = "started_at.asc",
+        started_at_gte: str | None = None,
+        started_at_lte: str | None = None,
+        missing_call: bool | None = None,
+        direction: str | None = None,
+        call_duration_gte: int | None = None,
+        call_duration_lte: int | None = None,
+        user_id: int | None = None,
+        team_id: int | None = None,
     ) -> CallListResponse:
         """Get list of calls with query.
 
@@ -135,9 +166,16 @@ class HipcallBaseClient(ABC):
         :param q: Search query which is searched at caller_number and callee_number.
             Don't add + or 00 as prefix just write number with country code.
         :param sort: Sort parameter. Defaults to "started_at.asc".
+        :param started_at_gte: Only calls started at or after this UTC datetime.
+        :param started_at_lte: Only calls started at or before this UTC datetime.
+        :param missing_call: Filter by missing call status.
+        :param direction: Filter by direction (inbound, outbound, internal).
+        :param call_duration_gte: Minimum call duration in seconds.
+        :param call_duration_lte: Maximum call duration in seconds.
+        :param user_id: Only calls handled by this user.
+        :param team_id: Only calls routed to this team.
         :return: Pydantic model containing call list and metadata.
         """
-        pass
 
     @abstractmethod
     def call_and_bridge(
@@ -145,23 +183,28 @@ class HipcallBaseClient(ABC):
         user_id: int,
         callee_number: str,
         ring_user_first: bool = True,
+        call_masking: bool | None = None,
+        call_masking_name: str | None = None,
     ) -> CallAndBridgeResponse:
         """Call and bridge user and given number.
 
         :param user_id: Database ID of the caller user.
         :param callee_number: Callee number.
         :param ring_user_first: Rings user first if set to True. Defaults to True.
+        :param call_masking: Enable call masking for this call.
+        :param call_masking_name: Name to use for call masking (max 30 chars).
         :return: Pydantic model containing call & bridge response.
         """
-        pass
 
     @abstractmethod
     def get_tasks(
         self,
         limit: int = 10,
         offset: int = 0,
-        q: Optional[str] = None,
+        q: str | None = None,
         sort: str = "id.asc",
+        assign_to_user_id: int | None = None,
+        done: bool | None = None,
     ) -> TaskListResponse:
         """Get list of tasks with query.
 
@@ -172,9 +215,10 @@ class HipcallBaseClient(ABC):
             Supported fields: id and name
             Ordering options: asc, asc_nulls_last, asc_nulls_first, desc,
             desc_nulls_last, desc_nulls_first
+        :param assign_to_user_id: Only tasks assigned to this user.
+        :param done: Filter by completion status.
         :return: Pydantic model containing task list and metadata.
         """
-        pass
 
     @abstractmethod
     def create_task(self, task: TaskCreate) -> TaskResponse:
@@ -183,7 +227,6 @@ class HipcallBaseClient(ABC):
         :param task: Pydantic model containing data for Task creation.
         :return: Pydantic model containing created task information.
         """
-        pass
 
     @abstractmethod
     def get_task(self, task_id: int) -> TaskDetailResponse:
@@ -192,4 +235,3 @@ class HipcallBaseClient(ABC):
         :param task_id: Database ID of the task.
         :return: Pydantic model containing task information.
         """
-        pass

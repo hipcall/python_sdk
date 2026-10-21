@@ -19,16 +19,17 @@ Please check out the online [documentation](https://hipcall-python-sdk.readthedo
 ## Roadmap
 
 - [x] Task
-- [ ] Phone system - call
-- [ ] Phone system - extensions
-- [ ] Phone system - greetings
-- [ ] Phone system - numbers
-- [ ] Phone system - teams
-- [ ] Phone system - users
-- [ ] Phone system - voicemails
-- [ ] Contact centre
-- [ ] Sales 
-- [ ] Account
+- [x] Phone system - call
+- [x] Phone system - extensions
+- [x] Phone system - greetings
+- [x] Phone system - numbers
+- [x] Phone system - teams
+- [x] Phone system - users
+- [x] Phone system - voicemails
+- [x] Contact centre
+- [x] Inbox
+- [x] Sales
+- [x] Account
 
 
 All [Hipcall](https://www.hipcall.com/en-gb/) libraries:

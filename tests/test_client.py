@@ -1,11 +1,12 @@
 import pytest
+
 from hipcall_sdk.client import Client
 from hipcall_sdk.exceptions import (
     BadRequestException,
+    HipcallAPIException,
     NotFoundException,
     UnauthorizedException,
     UnprocessableEntityException,
-    HipcallAPIException,
 )
 
 
