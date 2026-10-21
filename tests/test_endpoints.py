@@ -1,94 +1,18 @@
-from types import SimpleNamespace
-
 import pytest
 
 from hipcall_sdk.client import AsyncClient, Client
-from hipcall_sdk.exceptions import NotFoundException
+from hipcall_sdk.exceptions import HipcallAPIException, NotFoundException
 from hipcall_sdk.models import (
     CommentCreate,
     ContactCreate,
+    DispositionUpdate,
     TagCreate,
     TaskCreate,
     TaskUpdate,
 )
+from tests.fakes import FakeAsyncSession, FakeSession
 
 BASE = "https://use.hipcall.com.tr"
-
-
-class FakeSession:
-    """Records the last request and returns a canned response."""
-
-    def __init__(self, status=200, payload=None, text=""):
-        self.status = status
-        self.payload = payload if payload is not None else {}
-        self.text = text
-        self.calls = []
-
-    def _respond(self, verb, url, **kwargs):
-        self.calls.append((verb, url, kwargs))
-        return SimpleNamespace(
-            status_code=self.status,
-            text=self.text,
-            json=lambda: self.payload,
-        )
-
-    def get(self, url, **kwargs):
-        return self._respond("GET", url, **kwargs)
-
-    def post(self, url, **kwargs):
-        return self._respond("POST", url, **kwargs)
-
-    def patch(self, url, **kwargs):
-        return self._respond("PATCH", url, **kwargs)
-
-    def put(self, url, **kwargs):
-        return self._respond("PUT", url, **kwargs)
-
-    def delete(self, url, **kwargs):
-        return self._respond("DELETE", url, **kwargs)
-
-
-class FakeAsyncResponse:
-    def __init__(self, status, payload, text):
-        self.status = status
-        self._payload = payload
-        self._text = text
-
-    async def __aenter__(self):
-        return self
-
-    async def __aexit__(self, *exc):
-        return False
-
-    async def json(self):
-        return self._payload
-
-    async def text(self):
-        return self._text
-
-
-class FakeAsyncSession:
-    def __init__(self, status=200, payload=None, text=""):
-        self.status = status
-        self.payload = payload if payload is not None else {}
-        self.text = text
-        self.calls = []
-
-    def _respond(self, verb, url, **kwargs):
-        self.calls.append((verb, url, kwargs))
-        return FakeAsyncResponse(self.status, self.payload, self.text)
-
-    def get(self, url, **kwargs):
-        return self._respond("GET", url, **kwargs)
-
-    def post(self, url, **kwargs):
-        return self._respond("POST", url, **kwargs)
-
-    def patch(self, url, **kwargs):
-        return self._respond("PATCH", url, **kwargs)
-
-    def delete(self, url, **kwargs):
-        return self._respond("DELETE", url, **kwargs)
 
 
 CONTACT = {"id": 1, "first_name": "John"}
@@ -228,3 +152,101 @@ async def test_async_create_task_wraps_body_in_data():
     await client.create_task(TaskCreate(name="x"))
 
     assert client.session.calls[0][2]["json"] == {"data": {"name": "x"}}
+
+
+def test_get_contacts_parses_meta():
+    session = FakeSession(
+        payload={"data": [CONTACT], "meta": {"count": 42, "limit": 5, "offset": 10}}
+    )
+    result = make_client(session).get_contacts(limit=5, offset=10)
+
+    assert result.meta.count == 42
+    assert result.meta.offset == 10
+    assert result.data[0].first_name == "John"
+
+
+def test_get_call_sends_date_param():
+    session = FakeSession(
+        payload={
+            "data": {
+                "uuid": "abc",
+                "started_at": "2026-10-21T09:00:00Z",
+                "ended_at": "2026-10-21T09:01:00Z",
+                "direction": "inbound",
+            }
+        }
+    )
+    result = make_client(session).get_call("abc", "2026-10-21")
+
+    verb, url, kwargs = session.calls[0]
+    assert (verb, url) == ("GET", f"{BASE}/api/v3/calls/abc")
+    assert kwargs["params"] == {"date": "2026-10-21"}
+    assert result.data.started_at.year == 2026
+
+
+def test_call_and_bridge_minimal_body():
+    session = FakeSession(payload={"data": {"id": "xyz"}})
+    result = make_client(session).call_and_bridge(3, "905326202911")
+
+    verb, url, kwargs = session.calls[0]
+    assert (verb, url) == ("POST", f"{BASE}/api/v3/users/3/call")
+    assert kwargs["json"] == {"callee_number": "905326202911", "ring_user_first": True}
+    assert result.data.id == "xyz"
+
+
+def test_call_and_bridge_optional_fields():
+    session = FakeSession(payload={"data": {"id": "xyz"}})
+    make_client(session).call_and_bridge(
+        3,
+        "905326202911",
+        ring_user_first=False,
+        call_masking=False,
+        call_masking_name="Support",
+    )
+
+    assert session.calls[0][2]["json"] == {
+        "callee_number": "905326202911",
+        "ring_user_first": False,
+        "call_masking": False,
+        "call_masking_name": "Support",
+    }
+
+
+@pytest.mark.parametrize("status", [500, 502])
+@pytest.mark.parametrize("text", ["<html>Bad Gateway</html>", ""])
+def test_non_json_error_body_raises_api_exception(status, text):
+    session = FakeSession(status=status, text=text)
+
+    with pytest.raises(HipcallAPIException) as exc_info:
+        make_client(session).get_contact(1)
+
+    assert exc_info.value.status_code == status
+    assert str(exc_info.value)
+
+
+@pytest.mark.asyncio
+async def test_async_non_json_error_body_raises_api_exception():
+    client = AsyncClient("dummy_api_key")
+    client.session = FakeAsyncSession(status=502, text="<html>Bad Gateway</html>")
+
+    with pytest.raises(HipcallAPIException) as exc_info:
+        await client.get_contact(1)
+
+    assert exc_info.value.content == {"raw": "<html>Bad Gateway</html>"}
+
+
+@pytest.mark.asyncio
+async def test_async_set_call_disposition_uses_put():
+    client = AsyncClient("dummy_api_key")
+    client.session = FakeAsyncSession(
+        payload={"data": {"editable": True, "edit_window_minutes": 30}}
+    )
+
+    result = await client.set_call_disposition(
+        "abc", DispositionUpdate(disposition_id=7)
+    )
+
+    verb, url, kwargs = client.session.calls[0]
+    assert (verb, url) == ("PUT", f"{BASE}/api/v3/calls/abc/disposition")
+    assert kwargs["json"] == {"disposition_id": 7}
+    assert result.data.editable is True

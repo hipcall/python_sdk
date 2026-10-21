@@ -94,21 +94,35 @@ from hipcall_sdk.models import (
 class AsyncClient(HipcallBaseClient):
     def __init__(self, api_key: str, base_url: str | None = None):
         super().__init__(api_key, base_url)
-        self.session: aiohttp.ClientSession | None = None
+        self._session: aiohttp.ClientSession | None = None
+
+    @property
+    def session(self) -> aiohttp.ClientSession:
+        if self._session is None:
+            raise RuntimeError(
+                "AsyncClient has no open session. "
+                "Use it as `async with AsyncClient(api_key) as client:`."
+            )
+        return self._session
+
+    @session.setter
+    def session(self, value: aiohttp.ClientSession | None):
+        self._session = value
 
     async def __aenter__(self):
-        self.session = aiohttp.ClientSession(headers=self.get_default_headers())
+        self._session = aiohttp.ClientSession(headers=self.get_default_headers())
         return self
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
-        if self.session:
-            await self.session.close()
+        if self._session:
+            await self._session.close()
+            self._session = None
 
     async def get_call(self, call_id: str, date: str) -> CallDetailResponse:
         url = self.get_call_detail_url(call_id)
         params = {"date": date}
         async with self.session.get(url, params=params) as response:
-            content = await response.json()
+            content = self.load_json(await response.text())
             data = self.handle_response(response.status, content)
             return CallDetailResponse(**data)
 
@@ -117,7 +131,7 @@ class AsyncClient(HipcallBaseClient):
         limit: int = 10,
         offset: int = 0,
         q: str | None = None,
-        sort: str = "started_at.asc",
+        sort: str = "started_at.desc",
         started_at_gte: str | None = None,
         started_at_lte: str | None = None,
         missing_call: bool | None = None,
@@ -145,7 +159,7 @@ class AsyncClient(HipcallBaseClient):
             }
         )
         async with self.session.get(url, params=params) as response:
-            content = await response.json()
+            content = self.load_json(await response.text())
             data = self.handle_response(response.status, content)
             return CallListResponse(**data)
 
@@ -164,7 +178,7 @@ class AsyncClient(HipcallBaseClient):
         if call_masking_name is not None:
             data["call_masking_name"] = call_masking_name
         async with self.session.post(url, json=data) as response:
-            content = await response.json()
+            content = self.load_json(await response.text())
             data = self.handle_response(response.status, content)
             return CallAndBridgeResponse(**data)
 
@@ -189,7 +203,7 @@ class AsyncClient(HipcallBaseClient):
             }
         )
         async with self.session.get(url, params=params) as response:
-            content = await response.json()
+            content = self.load_json(await response.text())
             data = self.handle_response(response.status, content)
             return TaskListResponse(**data)
 
@@ -197,14 +211,14 @@ class AsyncClient(HipcallBaseClient):
         url = self.get_task_list_url()
         data = {"data": task.model_dump(mode="json", exclude_unset=True)}
         async with self.session.post(url, json=data) as response:
-            content = await response.json()
+            content = self.load_json(await response.text())
             data = self.handle_response(response.status, content)
             return TaskResponse(**data)
 
     async def get_task(self, task_id: int) -> TaskDetailResponse:
         url = self.get_task_detail_url(task_id)
         async with self.session.get(url) as response:
-            content = await response.json()
+            content = self.load_json(await response.text())
             data = self.handle_response(response.status, content)
             return TaskDetailResponse(**data)
 
@@ -213,7 +227,7 @@ class AsyncClient(HipcallBaseClient):
         url = f"{self.base_url}/api/v3/tasks/{task_id}"
         payload = body.model_dump(mode="json", exclude_unset=True)
         async with self.session.patch(url, json=payload) as response:
-            content = await response.json()
+            content = self.load_json(await response.text())
             data = self.handle_response(response.status, content)
             return TaskResponse(**data)
 
@@ -229,7 +243,7 @@ class AsyncClient(HipcallBaseClient):
         url = f"{self.base_url}/api/v3/tasks/{task_id}/comments"
         params = self.build_params(limit=limit, offset=offset, q=q, sort=sort)
         async with self.session.get(url, params=params) as response:
-            content = await response.json()
+            content = self.load_json(await response.text())
             data = self.handle_response(response.status, content)
             return CommentListResponse(**data)
 
@@ -240,7 +254,7 @@ class AsyncClient(HipcallBaseClient):
         url = f"{self.base_url}/api/v3/tasks/{task_id}/comments"
         payload = {"data": body.model_dump(mode="json", exclude_unset=True)}
         async with self.session.post(url, json=payload) as response:
-            content = await response.json()
+            content = self.load_json(await response.text())
             data = self.handle_response(response.status, content)
             return CommentResponse(**data)
 
@@ -251,7 +265,7 @@ class AsyncClient(HipcallBaseClient):
         url = f"{self.base_url}/api/v3/tasks/{task_id}/tags"
         params = self.build_params(limit=limit, offset=offset)
         async with self.session.get(url, params=params) as response:
-            content = await response.json()
+            content = self.load_json(await response.text())
             data = self.handle_response(response.status, content)
             return TagListResponse(**data)
 
@@ -260,7 +274,7 @@ class AsyncClient(HipcallBaseClient):
         url = f"{self.base_url}/api/v3/tasks/{task_id}/tags"
         payload = body.model_dump(mode="json", exclude_unset=True)
         async with self.session.post(url, json=payload) as response:
-            content = await response.json()
+            content = self.load_json(await response.text())
             data = self.handle_response(response.status, content)
             return TagResponse(**data)
 
@@ -283,7 +297,7 @@ class AsyncClient(HipcallBaseClient):
         url = f"{self.base_url}/api/v3/calls/{call_id}/comments"
         params = self.build_params(limit=limit, offset=offset, q=q, sort=sort)
         async with self.session.get(url, params=params) as response:
-            content = await response.json()
+            content = self.load_json(await response.text())
             data = self.handle_response(response.status, content)
             return CommentListResponse(**data)
 
@@ -294,7 +308,7 @@ class AsyncClient(HipcallBaseClient):
         url = f"{self.base_url}/api/v3/calls/{call_id}/comments"
         payload = body.model_dump(mode="json", exclude_unset=True)
         async with self.session.post(url, json=payload) as response:
-            content = await response.json()
+            content = self.load_json(await response.text())
             data = self.handle_response(response.status, content)
             return CommentResponse(**data)
 
@@ -305,7 +319,7 @@ class AsyncClient(HipcallBaseClient):
         url = f"{self.base_url}/api/v3/calls/{call_id}/tags"
         params = self.build_params(limit=limit, offset=offset)
         async with self.session.get(url, params=params) as response:
-            content = await response.json()
+            content = self.load_json(await response.text())
             data = self.handle_response(response.status, content)
             return TagListResponse(**data)
 
@@ -314,7 +328,7 @@ class AsyncClient(HipcallBaseClient):
         url = f"{self.base_url}/api/v3/calls/{call_id}/tags"
         payload = body.model_dump(mode="json", exclude_unset=True)
         async with self.session.post(url, json=payload) as response:
-            content = await response.json()
+            content = self.load_json(await response.text())
             data = self.handle_response(response.status, content)
             return TagResponse(**data)
 
@@ -329,7 +343,7 @@ class AsyncClient(HipcallBaseClient):
         """List cards sent during a call."""
         url = f"{self.base_url}/api/v3/calls/{call_id}/cards"
         async with self.session.get(url) as response:
-            content = await response.json()
+            content = self.load_json(await response.text())
             data = self.handle_response(response.status, content)
             return CardListResponse(**data)
 
@@ -338,7 +352,7 @@ class AsyncClient(HipcallBaseClient):
         url = f"{self.base_url}/api/v3/calls/{call_id}/cards"
         payload = body.model_dump(mode="json", exclude_unset=True)
         async with self.session.post(url, json=payload) as response:
-            content = await response.json()
+            content = self.load_json(await response.text())
             data = self.handle_response(response.status, content)
             return CardResponse(**data)
 
@@ -346,7 +360,7 @@ class AsyncClient(HipcallBaseClient):
         """Get the disposition set on a call."""
         url = f"{self.base_url}/api/v3/calls/{call_id}/disposition"
         async with self.session.get(url) as response:
-            content = await response.json()
+            content = self.load_json(await response.text())
             data = self.handle_response(response.status, content)
             return DispositionOnCallResponse(**data)
 
@@ -357,7 +371,7 @@ class AsyncClient(HipcallBaseClient):
         url = f"{self.base_url}/api/v3/calls/{call_id}/disposition"
         payload = body.model_dump(mode="json", exclude_unset=True)
         async with self.session.put(url, json=payload) as response:
-            content = await response.json()
+            content = self.load_json(await response.text())
             data = self.handle_response(response.status, content)
             return DispositionOnCallResponse(**data)
 
@@ -374,7 +388,7 @@ class AsyncClient(HipcallBaseClient):
             direction=direction, outcome=outcome, active=active, call_uuid=call_uuid
         )
         async with self.session.get(url, params=params) as response:
-            content = await response.json()
+            content = self.load_json(await response.text())
             data = self.handle_response(response.status, content)
             return DispositionListResponse(**data)
 
@@ -389,7 +403,7 @@ class AsyncClient(HipcallBaseClient):
         url = f"{self.base_url}/api/v3/extensions"
         params = self.build_params(limit=limit, offset=offset, q=q, sort=sort)
         async with self.session.get(url, params=params) as response:
-            content = await response.json()
+            content = self.load_json(await response.text())
             data = self.handle_response(response.status, content)
             return ExtensionListResponse(**data)
 
@@ -397,7 +411,7 @@ class AsyncClient(HipcallBaseClient):
         """Get an extension by ID."""
         url = f"{self.base_url}/api/v3/extensions/{extension_id}"
         async with self.session.get(url) as response:
-            content = await response.json()
+            content = self.load_json(await response.text())
             data = self.handle_response(response.status, content)
             return ExtensionResponse(**data)
 
@@ -408,7 +422,7 @@ class AsyncClient(HipcallBaseClient):
         url = f"{self.base_url}/api/v3/extensions/{extension_id}/call"
         payload = body.model_dump(mode="json", exclude_unset=True)
         async with self.session.post(url, json=payload) as response:
-            content = await response.json()
+            content = self.load_json(await response.text())
             data = self.handle_response(response.status, content)
             return ExtensionCall(**data)
 
@@ -423,7 +437,7 @@ class AsyncClient(HipcallBaseClient):
         url = f"{self.base_url}/api/v3/greetings"
         params = self.build_params(limit=limit, offset=offset, q=q, sort=sort)
         async with self.session.get(url, params=params) as response:
-            content = await response.json()
+            content = self.load_json(await response.text())
             data = self.handle_response(response.status, content)
             return GreetingListResponse(**data)
 
@@ -431,7 +445,7 @@ class AsyncClient(HipcallBaseClient):
         """Get a greeting by ID."""
         url = f"{self.base_url}/api/v3/greetings/{greeting_id}"
         async with self.session.get(url) as response:
-            content = await response.json()
+            content = self.load_json(await response.text())
             data = self.handle_response(response.status, content)
             return GreetingResponse(**data)
 
@@ -446,7 +460,7 @@ class AsyncClient(HipcallBaseClient):
         url = f"{self.base_url}/api/v3/numbers"
         params = self.build_params(limit=limit, offset=offset, q=q, sort=sort)
         async with self.session.get(url, params=params) as response:
-            content = await response.json()
+            content = self.load_json(await response.text())
             data = self.handle_response(response.status, content)
             return NumberListResponse(**data)
 
@@ -454,7 +468,7 @@ class AsyncClient(HipcallBaseClient):
         """Get a phone number by ID."""
         url = f"{self.base_url}/api/v3/numbers/{number_id}"
         async with self.session.get(url) as response:
-            content = await response.json()
+            content = self.load_json(await response.text())
             data = self.handle_response(response.status, content)
             return NumberResponse(**data)
 
@@ -469,7 +483,7 @@ class AsyncClient(HipcallBaseClient):
         url = f"{self.base_url}/api/v3/teams"
         params = self.build_params(limit=limit, offset=offset, q=q, sort=sort)
         async with self.session.get(url, params=params) as response:
-            content = await response.json()
+            content = self.load_json(await response.text())
             data = self.handle_response(response.status, content)
             return TeamListResponse(**data)
 
@@ -477,7 +491,7 @@ class AsyncClient(HipcallBaseClient):
         """Get a team by ID."""
         url = f"{self.base_url}/api/v3/teams/{team_id}"
         async with self.session.get(url) as response:
-            content = await response.json()
+            content = self.load_json(await response.text())
             data = self.handle_response(response.status, content)
             return TeamResponse(**data)
 
@@ -492,7 +506,7 @@ class AsyncClient(HipcallBaseClient):
         url = f"{self.base_url}/api/v3/voicemails"
         params = self.build_params(limit=limit, offset=offset, q=q, sort=sort)
         async with self.session.get(url, params=params) as response:
-            content = await response.json()
+            content = self.load_json(await response.text())
             data = self.handle_response(response.status, content)
             return VoicemailListResponse(**data)
 
@@ -500,7 +514,7 @@ class AsyncClient(HipcallBaseClient):
         """Get a voicemail by ID."""
         url = f"{self.base_url}/api/v3/voicemails/{voicemail_id}"
         async with self.session.get(url) as response:
-            content = await response.json()
+            content = self.load_json(await response.text())
             data = self.handle_response(response.status, content)
             return VoicemailResponse(**data)
 
@@ -515,7 +529,7 @@ class AsyncClient(HipcallBaseClient):
         url = f"{self.base_url}/api/v3/users"
         params = self.build_params(limit=limit, offset=offset, q=q, sort=sort)
         async with self.session.get(url, params=params) as response:
-            content = await response.json()
+            content = self.load_json(await response.text())
             data = self.handle_response(response.status, content)
             return UserListResponse(**data)
 
@@ -523,7 +537,7 @@ class AsyncClient(HipcallBaseClient):
         """Get a user by ID."""
         url = f"{self.base_url}/api/v3/users/{user_id}"
         async with self.session.get(url) as response:
-            content = await response.json()
+            content = self.load_json(await response.text())
             data = self.handle_response(response.status, content)
             return UserResponse(**data)
 
@@ -532,7 +546,7 @@ class AsyncClient(HipcallBaseClient):
         url = f"{self.base_url}/api/v3/users/{user_id}"
         payload = body.model_dump(mode="json", exclude_unset=True)
         async with self.session.patch(url, json=payload) as response:
-            content = await response.json()
+            content = self.load_json(await response.text())
             data = self.handle_response(response.status, content)
             return UserResponse(**data)
 
@@ -540,7 +554,7 @@ class AsyncClient(HipcallBaseClient):
         """Get today's statistics for a user."""
         url = f"{self.base_url}/api/v3/users/{user_id}/stats/today"
         async with self.session.get(url) as response:
-            content = await response.json()
+            content = self.load_json(await response.text())
             data = self.handle_response(response.status, content)
             return TodayStatsResponse(**data)
 
@@ -548,7 +562,7 @@ class AsyncClient(HipcallBaseClient):
         """Get the authenticated user's profile."""
         url = f"{self.base_url}/api/v3/profile"
         async with self.session.get(url) as response:
-            content = await response.json()
+            content = self.load_json(await response.text())
             data = self.handle_response(response.status, content)
             return ProfileResponse(**data)
 
@@ -556,7 +570,7 @@ class AsyncClient(HipcallBaseClient):
         """Get today's statistics for the caller."""
         url = f"{self.base_url}/api/v3/profile/stats/today"
         async with self.session.get(url) as response:
-            content = await response.json()
+            content = self.load_json(await response.text())
             data = self.handle_response(response.status, content)
             return TodayStatsResponse(**data)
 
@@ -571,7 +585,7 @@ class AsyncClient(HipcallBaseClient):
         url = f"{self.base_url}/api/v3/contacts"
         params = self.build_params(limit=limit, offset=offset, q=q, sort=sort)
         async with self.session.get(url, params=params) as response:
-            content = await response.json()
+            content = self.load_json(await response.text())
             data = self.handle_response(response.status, content)
             return ContactListResponse(**data)
 
@@ -580,7 +594,7 @@ class AsyncClient(HipcallBaseClient):
         url = f"{self.base_url}/api/v3/contacts"
         payload = body.model_dump(mode="json", exclude_unset=True)
         async with self.session.post(url, json=payload) as response:
-            content = await response.json()
+            content = self.load_json(await response.text())
             data = self.handle_response(response.status, content)
             return ContactResponse(**data)
 
@@ -588,7 +602,7 @@ class AsyncClient(HipcallBaseClient):
         """Get a contact by ID."""
         url = f"{self.base_url}/api/v3/contacts/{contact_id}"
         async with self.session.get(url) as response:
-            content = await response.json()
+            content = self.load_json(await response.text())
             data = self.handle_response(response.status, content)
             return ContactResponse(**data)
 
@@ -599,7 +613,7 @@ class AsyncClient(HipcallBaseClient):
         url = f"{self.base_url}/api/v3/contacts/{contact_id}"
         payload = body.model_dump(mode="json", exclude_unset=True)
         async with self.session.patch(url, json=payload) as response:
-            content = await response.json()
+            content = self.load_json(await response.text())
             data = self.handle_response(response.status, content)
             return ContactResponse(**data)
 
@@ -607,7 +621,7 @@ class AsyncClient(HipcallBaseClient):
         """Get a contact by external ID."""
         url = f"{self.base_url}/api/v3/contacts/by-external-id/{external_id}"
         async with self.session.get(url) as response:
-            content = await response.json()
+            content = self.load_json(await response.text())
             data = self.handle_response(response.status, content)
             return ContactResponse(**data)
 
@@ -618,7 +632,7 @@ class AsyncClient(HipcallBaseClient):
         url = f"{self.base_url}/api/v3/contacts/{contact_id}/assign"
         payload = {"assign_to_user_id": assign_to_user_id}
         async with self.session.patch(url, json=payload) as response:
-            content = await response.json()
+            content = self.load_json(await response.text())
             data = self.handle_response(response.status, content)
             return ContactResponse(**data)
 
@@ -629,7 +643,7 @@ class AsyncClient(HipcallBaseClient):
         url = f"{self.base_url}/api/v3/contacts/custom-fields"
         params = self.build_params(active=active)
         async with self.session.get(url, params=params) as response:
-            content = await response.json()
+            content = self.load_json(await response.text())
             data = self.handle_response(response.status, content)
             return CustomFieldDefinitionListResponse(**data)
 
@@ -645,7 +659,7 @@ class AsyncClient(HipcallBaseClient):
         url = f"{self.base_url}/api/v3/contacts/{contact_id}/comments"
         params = self.build_params(limit=limit, offset=offset, q=q, sort=sort)
         async with self.session.get(url, params=params) as response:
-            content = await response.json()
+            content = self.load_json(await response.text())
             data = self.handle_response(response.status, content)
             return CommentListResponse(**data)
 
@@ -656,7 +670,7 @@ class AsyncClient(HipcallBaseClient):
         url = f"{self.base_url}/api/v3/contacts/{contact_id}/comments"
         payload = body.model_dump(mode="json", exclude_unset=True)
         async with self.session.post(url, json=payload) as response:
-            content = await response.json()
+            content = self.load_json(await response.text())
             data = self.handle_response(response.status, content)
             return CommentResponse(**data)
 
@@ -664,7 +678,7 @@ class AsyncClient(HipcallBaseClient):
         """List a contact's consent history."""
         url = f"{self.base_url}/api/v3/contacts/{contact_id}/consent"
         async with self.session.get(url) as response:
-            content = await response.json()
+            content = self.load_json(await response.text())
             data = self.handle_response(response.status, content)
             return ConsentListResponse(**data)
 
@@ -675,7 +689,7 @@ class AsyncClient(HipcallBaseClient):
         url = f"{self.base_url}/api/v3/contacts/{contact_id}/consent"
         payload = body.model_dump(mode="json", exclude_unset=True)
         async with self.session.post(url, json=payload) as response:
-            content = await response.json()
+            content = self.load_json(await response.text())
             data = self.handle_response(response.status, content)
             return ConsentResponse(**data)
 
@@ -686,7 +700,7 @@ class AsyncClient(HipcallBaseClient):
         url = f"{self.base_url}/api/v3/contacts/{contact_id}/emails"
         payload = body.model_dump(mode="json", exclude_unset=True)
         async with self.session.post(url, json=payload) as response:
-            content = await response.json()
+            content = self.load_json(await response.text())
             data = self.handle_response(response.status, content)
             return EmailListResponse(**data)
 
@@ -704,7 +718,7 @@ class AsyncClient(HipcallBaseClient):
         url = f"{self.base_url}/api/v3/contacts/{contact_id}/phones"
         payload = body.model_dump(mode="json", exclude_unset=True)
         async with self.session.post(url, json=payload) as response:
-            content = await response.json()
+            content = self.load_json(await response.text())
             data = self.handle_response(response.status, content)
             return PhoneListResponse(**data)
 
@@ -722,7 +736,7 @@ class AsyncClient(HipcallBaseClient):
         url = f"{self.base_url}/api/v3/contacts/{contact_id}/tags"
         params = self.build_params(limit=limit, offset=offset)
         async with self.session.get(url, params=params) as response:
-            content = await response.json()
+            content = self.load_json(await response.text())
             data = self.handle_response(response.status, content)
             return TagListResponse(**data)
 
@@ -731,7 +745,7 @@ class AsyncClient(HipcallBaseClient):
         url = f"{self.base_url}/api/v3/contacts/{contact_id}/tags"
         payload = body.model_dump(mode="json", exclude_unset=True)
         async with self.session.post(url, json=payload) as response:
-            content = await response.json()
+            content = self.load_json(await response.text())
             data = self.handle_response(response.status, content)
             return TagResponse(**data)
 
@@ -753,7 +767,7 @@ class AsyncClient(HipcallBaseClient):
         url = f"{self.base_url}/api/v3/companies"
         params = self.build_params(limit=limit, offset=offset, q=q, sort=sort)
         async with self.session.get(url, params=params) as response:
-            content = await response.json()
+            content = self.load_json(await response.text())
             data = self.handle_response(response.status, content)
             return CompanyListResponse(**data)
 
@@ -762,7 +776,7 @@ class AsyncClient(HipcallBaseClient):
         url = f"{self.base_url}/api/v3/companies"
         payload = body.model_dump(mode="json", exclude_unset=True)
         async with self.session.post(url, json=payload) as response:
-            content = await response.json()
+            content = self.load_json(await response.text())
             data = self.handle_response(response.status, content)
             return CompanyResponse(**data)
 
@@ -770,7 +784,7 @@ class AsyncClient(HipcallBaseClient):
         """Get a company by ID."""
         url = f"{self.base_url}/api/v3/companies/{company_id}"
         async with self.session.get(url) as response:
-            content = await response.json()
+            content = self.load_json(await response.text())
             data = self.handle_response(response.status, content)
             return CompanyResponse(**data)
 
@@ -781,7 +795,7 @@ class AsyncClient(HipcallBaseClient):
         url = f"{self.base_url}/api/v3/companies/{company_id}"
         payload = body.model_dump(mode="json", exclude_unset=True)
         async with self.session.patch(url, json=payload) as response:
-            content = await response.json()
+            content = self.load_json(await response.text())
             data = self.handle_response(response.status, content)
             return CompanyResponse(**data)
 
@@ -789,7 +803,7 @@ class AsyncClient(HipcallBaseClient):
         """Get a company by external ID."""
         url = f"{self.base_url}/api/v3/companies/by-external-id/{external_id}"
         async with self.session.get(url) as response:
-            content = await response.json()
+            content = self.load_json(await response.text())
             data = self.handle_response(response.status, content)
             return CompanyResponse(**data)
 
@@ -800,7 +814,7 @@ class AsyncClient(HipcallBaseClient):
         url = f"{self.base_url}/api/v3/companies/{company_id}/assign"
         payload = {"assign_to_user_id": assign_to_user_id}
         async with self.session.patch(url, json=payload) as response:
-            content = await response.json()
+            content = self.load_json(await response.text())
             data = self.handle_response(response.status, content)
             return CompanyResponse(**data)
 
@@ -811,7 +825,7 @@ class AsyncClient(HipcallBaseClient):
         url = f"{self.base_url}/api/v3/companies/custom-fields"
         params = self.build_params(active=active)
         async with self.session.get(url, params=params) as response:
-            content = await response.json()
+            content = self.load_json(await response.text())
             data = self.handle_response(response.status, content)
             return CustomFieldDefinitionListResponse(**data)
 
@@ -827,7 +841,7 @@ class AsyncClient(HipcallBaseClient):
         url = f"{self.base_url}/api/v3/companies/{company_id}/comments"
         params = self.build_params(limit=limit, offset=offset, q=q, sort=sort)
         async with self.session.get(url, params=params) as response:
-            content = await response.json()
+            content = self.load_json(await response.text())
             data = self.handle_response(response.status, content)
             return CommentListResponse(**data)
 
@@ -838,7 +852,7 @@ class AsyncClient(HipcallBaseClient):
         url = f"{self.base_url}/api/v3/companies/{company_id}/comments"
         payload = body.model_dump(mode="json", exclude_unset=True)
         async with self.session.post(url, json=payload) as response:
-            content = await response.json()
+            content = self.load_json(await response.text())
             data = self.handle_response(response.status, content)
             return CommentResponse(**data)
 
@@ -849,7 +863,7 @@ class AsyncClient(HipcallBaseClient):
         url = f"{self.base_url}/api/v3/companies/{company_id}/emails"
         payload = body.model_dump(mode="json", exclude_unset=True)
         async with self.session.post(url, json=payload) as response:
-            content = await response.json()
+            content = self.load_json(await response.text())
             data = self.handle_response(response.status, content)
             return EmailListResponse(**data)
 
@@ -867,7 +881,7 @@ class AsyncClient(HipcallBaseClient):
         url = f"{self.base_url}/api/v3/companies/{company_id}/phones"
         payload = body.model_dump(mode="json", exclude_unset=True)
         async with self.session.post(url, json=payload) as response:
-            content = await response.json()
+            content = self.load_json(await response.text())
             data = self.handle_response(response.status, content)
             return PhoneListResponse(**data)
 
@@ -885,7 +899,7 @@ class AsyncClient(HipcallBaseClient):
         url = f"{self.base_url}/api/v3/companies/{company_id}/tags"
         params = self.build_params(limit=limit, offset=offset)
         async with self.session.get(url, params=params) as response:
-            content = await response.json()
+            content = self.load_json(await response.text())
             data = self.handle_response(response.status, content)
             return TagListResponse(**data)
 
@@ -894,7 +908,7 @@ class AsyncClient(HipcallBaseClient):
         url = f"{self.base_url}/api/v3/companies/{company_id}/tags"
         payload = body.model_dump(mode="json", exclude_unset=True)
         async with self.session.post(url, json=payload) as response:
-            content = await response.json()
+            content = self.load_json(await response.text())
             data = self.handle_response(response.status, content)
             return TagResponse(**data)
 
@@ -909,7 +923,7 @@ class AsyncClient(HipcallBaseClient):
         """List employee-size bands."""
         url = f"{self.base_url}/api/v3/employee-sizes"
         async with self.session.get(url) as response:
-            content = await response.json()
+            content = self.load_json(await response.text())
             data = self.handle_response(response.status, content)
             return EmployeeSizeListResponse(**data)
 
@@ -924,7 +938,7 @@ class AsyncClient(HipcallBaseClient):
         url = f"{self.base_url}/api/v3/life-cycles"
         params = self.build_params(limit=limit, offset=offset, q=q, sort=sort)
         async with self.session.get(url, params=params) as response:
-            content = await response.json()
+            content = self.load_json(await response.text())
             data = self.handle_response(response.status, content)
             return LifeCycleListResponse(**data)
 
@@ -939,7 +953,7 @@ class AsyncClient(HipcallBaseClient):
         url = f"{self.base_url}/api/v3/sectors"
         params = self.build_params(limit=limit, offset=offset, q=q, sort=sort)
         async with self.session.get(url, params=params) as response:
-            content = await response.json()
+            content = self.load_json(await response.text())
             data = self.handle_response(response.status, content)
             return SectorListResponse(**data)
 
@@ -954,7 +968,7 @@ class AsyncClient(HipcallBaseClient):
         url = f"{self.base_url}/api/v3/sources"
         params = self.build_params(limit=limit, offset=offset, q=q, sort=sort)
         async with self.session.get(url, params=params) as response:
-            content = await response.json()
+            content = self.load_json(await response.text())
             data = self.handle_response(response.status, content)
             return SourceListResponse(**data)
 
@@ -962,7 +976,7 @@ class AsyncClient(HipcallBaseClient):
         """List all contact-centre attributes in one call."""
         url = f"{self.base_url}/api/v3/contact-center/attributes"
         async with self.session.get(url) as response:
-            content = await response.json()
+            content = self.load_json(await response.text())
             data = self.handle_response(response.status, content)
             return ContactCenterAttributesResponse(**data)
 
@@ -971,7 +985,7 @@ class AsyncClient(HipcallBaseClient):
         url = f"{self.base_url}/api/v3/lookup/by_email"
         params = self.build_params(email=email)
         async with self.session.get(url, params=params) as response:
-            content = await response.json()
+            content = self.load_json(await response.text())
             data = self.handle_response(response.status, content)
             return LookupByEmailResponse(**data)
 
@@ -980,7 +994,7 @@ class AsyncClient(HipcallBaseClient):
         url = f"{self.base_url}/api/v3/lookup/by_phone"
         params = self.build_params(number=number)
         async with self.session.get(url, params=params) as response:
-            content = await response.json()
+            content = self.load_json(await response.text())
             data = self.handle_response(response.status, content)
             return LookupByPhoneResponse(**data)
 
@@ -998,7 +1012,7 @@ class AsyncClient(HipcallBaseClient):
             type=type, limit=limit, offset=offset, q=q, sort=sort
         )
         async with self.session.get(url, params=params) as response:
-            content = await response.json()
+            content = self.load_json(await response.text())
             data = self.handle_response(response.status, content)
             return TagListResponse(**data)
 
@@ -1009,7 +1023,7 @@ class AsyncClient(HipcallBaseClient):
         url = f"{self.base_url}/api/v3/inbox"
         params = self.build_params(limit=limit, offset=offset, q=q)
         async with self.session.get(url, params=params) as response:
-            content = await response.json()
+            content = self.load_json(await response.text())
             data = self.handle_response(response.status, content)
             return InboxListResponse(**data)
 
@@ -1017,7 +1031,7 @@ class AsyncClient(HipcallBaseClient):
         """Get an inbox."""
         url = f"{self.base_url}/api/v3/inbox/{inbox_id}"
         async with self.session.get(url) as response:
-            content = await response.json()
+            content = self.load_json(await response.text())
             data = self.handle_response(response.status, content)
             return InboxResponse(**data)
 
@@ -1026,7 +1040,7 @@ class AsyncClient(HipcallBaseClient):
         url = f"{self.base_url}/api/v3/inbox/{inbox_id}"
         payload = body.model_dump(mode="json", exclude_unset=True)
         async with self.session.patch(url, json=payload) as response:
-            content = await response.json()
+            content = self.load_json(await response.text())
             data = self.handle_response(response.status, content)
             return InboxResponse(**data)
 
@@ -1050,7 +1064,7 @@ class AsyncClient(HipcallBaseClient):
             }
         )
         async with self.session.get(url, params=params) as response:
-            content = await response.json()
+            content = self.load_json(await response.text())
             data = self.handle_response(response.status, content)
             return ConversationListResponse(**data)
 
@@ -1061,7 +1075,7 @@ class AsyncClient(HipcallBaseClient):
         url = f"{self.base_url}/api/v3/conversations/{conversation_id}"
         params = self.build_params(date=date)
         async with self.session.get(url, params=params) as response:
-            content = await response.json()
+            content = self.load_json(await response.text())
             data = self.handle_response(response.status, content)
             return ConversationResponse(**data)
 
@@ -1072,7 +1086,7 @@ class AsyncClient(HipcallBaseClient):
         url = f"{self.base_url}/api/v3/conversations/{conversation_id}"
         payload = body.model_dump(mode="json", exclude_unset=True)
         async with self.session.patch(url, json=payload) as response:
-            content = await response.json()
+            content = self.load_json(await response.text())
             data = self.handle_response(response.status, content)
             return ConversationResponse(**data)
 
@@ -1083,7 +1097,7 @@ class AsyncClient(HipcallBaseClient):
         url = f"{self.base_url}/api/v3/conversations/{conversation_id}/messages"
         params = self.build_params(limit=limit, offset=offset)
         async with self.session.get(url, params=params) as response:
-            content = await response.json()
+            content = self.load_json(await response.text())
             data = self.handle_response(response.status, content)
             return MessageListResponse(**data)
 
@@ -1094,7 +1108,7 @@ class AsyncClient(HipcallBaseClient):
         url = f"{self.base_url}/api/v3/conversations/{conversation_id}/messages/text"
         payload = body.model_dump(mode="json", exclude_unset=True)
         async with self.session.post(url, json=payload) as response:
-            content = await response.json()
+            content = self.load_json(await response.text())
             data = self.handle_response(response.status, content)
             return MessageResponse(**data)
 
@@ -1105,7 +1119,7 @@ class AsyncClient(HipcallBaseClient):
         url = f"{self.base_url}/api/v3/inbox/{inbox_id}/messages/template"
         payload = body.model_dump(mode="json", exclude_unset=True)
         async with self.session.post(url, json=payload) as response:
-            content = await response.json()
+            content = self.load_json(await response.text())
             data = self.handle_response(response.status, content)
             return TemplateMessageResponse(**data)
 
@@ -1115,7 +1129,7 @@ class AsyncClient(HipcallBaseClient):
         """Get a template send record."""
         url = f"{self.base_url}/api/v3/inbox/{inbox_id}/messages/template/{template_message_id}"
         async with self.session.get(url) as response:
-            content = await response.json()
+            content = self.load_json(await response.text())
             data = self.handle_response(response.status, content)
             return TemplateMessageResponse(**data)
 
@@ -1130,7 +1144,7 @@ class AsyncClient(HipcallBaseClient):
         url = f"{self.base_url}/api/v3/deals"
         params = self.build_params(limit=limit, offset=offset, q=q, sort=sort)
         async with self.session.get(url, params=params) as response:
-            content = await response.json()
+            content = self.load_json(await response.text())
             data = self.handle_response(response.status, content)
             return DealListResponse(**data)
 
@@ -1138,7 +1152,7 @@ class AsyncClient(HipcallBaseClient):
         """Get a deal by ID."""
         url = f"{self.base_url}/api/v3/deals/{deal_id}"
         async with self.session.get(url) as response:
-            content = await response.json()
+            content = self.load_json(await response.text())
             data = self.handle_response(response.status, content)
             return DealResponse(**data)
 
@@ -1154,7 +1168,7 @@ class AsyncClient(HipcallBaseClient):
         url = f"{self.base_url}/api/v3/deals/{deal_id}/comments"
         params = self.build_params(limit=limit, offset=offset, q=q, sort=sort)
         async with self.session.get(url, params=params) as response:
-            content = await response.json()
+            content = self.load_json(await response.text())
             data = self.handle_response(response.status, content)
             return CommentListResponse(**data)
 
@@ -1165,7 +1179,7 @@ class AsyncClient(HipcallBaseClient):
         url = f"{self.base_url}/api/v3/deals/{deal_id}/comments"
         payload = body.model_dump(mode="json", exclude_unset=True)
         async with self.session.post(url, json=payload) as response:
-            content = await response.json()
+            content = self.load_json(await response.text())
             data = self.handle_response(response.status, content)
             return CommentResponse(**data)
 
@@ -1173,7 +1187,7 @@ class AsyncClient(HipcallBaseClient):
         """List published procedures."""
         url = f"{self.base_url}/api/v3/procedures"
         async with self.session.get(url) as response:
-            content = await response.json()
+            content = self.load_json(await response.text())
             data = self.handle_response(response.status, content)
             return ProcedureListResponse(**data)
 
@@ -1181,7 +1195,7 @@ class AsyncClient(HipcallBaseClient):
         """Get a published procedure by UUID."""
         url = f"{self.base_url}/api/v3/procedures/{procedure_uuid}"
         async with self.session.get(url) as response:
-            content = await response.json()
+            content = self.load_json(await response.text())
             data = self.handle_response(response.status, content)
             return ProcedureResponse(**data)
 
@@ -1190,7 +1204,7 @@ class AsyncClient(HipcallBaseClient):
         url = f"{self.base_url}/api/v3/mobile/devices"
         payload = body.model_dump(mode="json", exclude_unset=True)
         async with self.session.post(url, json=payload) as response:
-            content = await response.json()
+            content = self.load_json(await response.text())
             data = self.handle_response(response.status, content)
             return MobileDevice(**data)
 
@@ -1201,7 +1215,7 @@ class AsyncClient(HipcallBaseClient):
         url = f"{self.base_url}/api/v3/mobile/devices/{device_id}"
         payload = body.model_dump(mode="json", exclude_unset=True)
         async with self.session.patch(url, json=payload) as response:
-            content = await response.json()
+            content = self.load_json(await response.text())
             data = self.handle_response(response.status, content)
             return MobileDeviceUpdateResponse(**data)
 
@@ -1209,7 +1223,7 @@ class AsyncClient(HipcallBaseClient):
         """Unregister a mobile device."""
         url = f"{self.base_url}/api/v3/mobile/devices/{device_id}"
         async with self.session.delete(url) as response:
-            content = await response.json()
+            content = self.load_json(await response.text())
             data = self.handle_response(response.status, content)
             return MobileDeviceDeleteResponse(**data)
 
@@ -1218,7 +1232,7 @@ class AsyncClient(HipcallBaseClient):
         url = f"{self.base_url}/api/v3/push/token"
         payload = body.model_dump(mode="json", exclude_unset=True)
         async with self.session.post(url, json=payload) as response:
-            content = await response.json()
+            content = self.load_json(await response.text())
             data = self.handle_response(response.status, content)
             return PushTokenResponse(**data)
 
@@ -1236,7 +1250,7 @@ class AsyncClient(HipcallBaseClient):
         url = f"{self.base_url}/api/v3/sip/token"
         payload = request.model_dump(mode="json", exclude_unset=True) if request else {}
         async with self.session.post(url, json=payload) as response:
-            content = await response.json()
+            content = self.load_json(await response.text())
             data = self.handle_response(response.status, content)
             return SipTokenResponse(**data)
 
@@ -1245,6 +1259,6 @@ class AsyncClient(HipcallBaseClient):
         url = f"{self.base_url}/api/v3/attribution"
         payload = body.model_dump(mode="json", exclude_unset=True)
         async with self.session.post(url, json=payload) as response:
-            content = await response.json()
+            content = self.load_json(await response.text())
             data = self.handle_response(response.status, content)
             return AttributionResponse(**data)
