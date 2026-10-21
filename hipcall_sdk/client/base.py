@@ -76,12 +76,19 @@ class HipcallBaseClient(ABC):
 
     @staticmethod
     def load_json(text: str) -> dict | None:
-        """Parse a response body that may be empty (e.g. HTTP 204).
+        """Parse a response body that may be empty (e.g. HTTP 204) or not JSON
+        (e.g. an HTML error page from a proxy).
 
         :param text: Raw response body.
-        :return: Parsed JSON or None if the body is empty.
+        :return: Parsed JSON, None if the body is empty, or {"raw": text} if
+            the body is not valid JSON.
         """
-        return json.loads(text) if text else None
+        if not text:
+            return None
+        try:
+            return json.loads(text)
+        except ValueError:
+            return {"raw": text}
 
     @staticmethod
     def build_params(**kwargs) -> dict:
@@ -149,7 +156,7 @@ class HipcallBaseClient(ABC):
         limit: int = 10,
         offset: int = 0,
         q: str | None = None,
-        sort: str = "started_at.asc",
+        sort: str = "started_at.desc",
         started_at_gte: str | None = None,
         started_at_lte: str | None = None,
         missing_call: bool | None = None,
@@ -165,7 +172,7 @@ class HipcallBaseClient(ABC):
         :param offset: Offset of the query. Defaults to 0.
         :param q: Search query which is searched at caller_number and callee_number.
             Don't add + or 00 as prefix just write number with country code.
-        :param sort: Sort parameter. Defaults to "started_at.asc".
+        :param sort: Sort parameter. Defaults to "started_at.desc".
         :param started_at_gte: Only calls started at or after this UTC datetime.
         :param started_at_lte: Only calls started at or before this UTC datetime.
         :param missing_call: Filter by missing call status.

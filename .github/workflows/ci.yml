@@ -7,7 +7,7 @@ on:
       - main
       - 'v*'
     tags:
-      - '*'
+      - '[0-9]+.[0-9]+.[0-9]+*'
 
 permissions:
   contents: read
@@ -84,6 +84,14 @@ jobs:
 
       - name: Install dependencies
         run: poetry install --sync --no-interaction
+
+      - name: Check tag matches package version
+        run: |
+          version="$(poetry version --short)"
+          if [ "$version" != "$GITHUB_REF_NAME" ]; then
+            echo "::error::Tag $GITHUB_REF_NAME does not match pyproject.toml version $version"
+            exit 1
+          fi
 
       - name: Package project
         run: poetry build
